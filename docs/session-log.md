@@ -12,6 +12,35 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-11-12 - 오픈소스(rhwp, genoffice, golbin/hop) 기반 기능 구현, UI 상호작용 및 테스트 검증
+
+- **요청/피드백**:
+  1. HWP 및 오피스 주요 기능 미비 사항 보강 요청: Undo/Redo(Ctrl+Z/Y), 표준 단축키, 문자수/단어수 통계
+  2. 스프레드시트 마우스 드래그 다중 셀 범위 선택, 실시간 수식 엔진(=SUM, =AVERAGE 등), 상태표시줄 범위 통계(평균, 개수, 합계), 키보드 셀 이동
+  3. golbin/hop 응용: PDF 내보내기(Ctrl+E), 모달 다이얼로그(찾기/바꾸기 Ctrl+F, 쪽 여백 설정 F7, 문자표 입력 Ctrl+F10, 표 삽입 Ctrl+N/T)
+  4. Playwright 자동화 UI 테스트 스위트로 직접 검증 및 캡처
+- **수정**:
+  - `src/renderer/src/utils/spreadsheetRange.ts`: 셀 좌표 파싱 및 범위 계산 유틸리티 구현
+  - `src/renderer/src/utils/formulaEngine.ts`: =SUM, =AVERAGE, =COUNT, =MIN, =MAX 및 사칙연산 수식 평가기 및 범위 통계 계산 함수 구현
+  - `src/renderer/src/components/modals/`: FindReplaceModal, PageSetupModal, SymbolModal, TableInsertModal 4종 모달 구현
+  - `src/renderer/src/components/HwpRibbon.tsx`: 실행 취소, 다시 실행 버튼 추가 및 4종 모달 연동
+  - `src/renderer/src/components/ExcelRibbon.tsx`: 실행 취소, 다시 실행 버튼 추가
+  - `src/renderer/src/components/HwpCanvas.tsx`: pageMargins props 및 동적 여백 반영
+  - `src/renderer/src/components/SheetCanvas.tsx`: 마우스 드래그 다중 범위 선택, .selected-in-range 하이라이트, 키보드 네비게이션(방향키, Tab, Enter, F2, Delete), 수식 실시간 렌더링 구현
+  - `src/renderer/src/components/StatusBar.tsx`: HWP 실시간 글자수/낱말수 통계 및 스프레드시트 범위 통계(평균, 개수, 합계) 동적 표기
+  - `src/renderer/src/components/FileMenuDropdown.tsx`: PDF로 내보내기(Ctrl+E) 메뉴 항목 추가
+  - `src/main/index.ts`: app:exportPdf IPC 핸들러(webContents.printToPDF) 구현
+  - `src/preload/index.ts`: exportPdf contextBridge 노출
+  - `src/renderer/src/App.tsx`: HWP 및 스프레드시트 각각 독립 Undo/Redo 히스토리 스택, 전역 단축키 핸들러, 4종 모달 및 PDF 내보내기 연동
+  - `src/renderer/src/styles.css`: 모달 다이얼로그 및 스프레드시트 범위 선택 스타일 추가
+  - `scripts/test-ui.js`: Playwright 기반 HWP 뷰, 문자표 모달, 파일 메뉴(PDF 내보내기), 엑셀 수식 계산, 마우스 드래그 다중 범위 선택 및 상태표시줄 통계 검증 스위트 확장
+- **검증**:
+  - `npm run build`: Electron Vite 번들링 무결점 통과
+  - `npm run test:ui`: Playwright 헤드리스 브라우저 테스트 6개 검증 항목 100% 무결점 통과 및 스크린샷 5종(01-hwp-view.png, 02-file-menu.png, 03-excel-view.png, 04-modals-symbol.png, 05-spreadsheet-range-selection.png) 캡처 완료
+  - `npx prettier --write`: printWidth 200 기준 전체 코드 포맷팅 완료
+  - `npm run dist:win`: NSIS 단일 인스톨러 `OmniOffice-Setup-0.2.0.exe` (105MB, MD5: 07f1fd6c0631a2d5f8ef9749cd5d3195) 빌드 완료
+- **다음**: 사용자 실기 테스트 및 피드백 수렴
+
 ## 2026-11-12 - 흰 화면(React Error #60) 버그 수정, NSIS 인스톨러 재배포 및 Git 커밋
 
 - **요청/피드백**:

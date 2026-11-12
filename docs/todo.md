@@ -14,7 +14,6 @@ domain: development
 
 - [ ] rhwp Rust 코어 파서 및 WASM 렌더러 모듈 바인딩 (`src-tauri/`, `src/renderer/src/components/HwpCanvas.tsx`)
 - [ ] 실제 대용량 HWP 5.0 바이너리 파일 열기 및 로컬 파싱 무결성 검증 (`src/renderer/src/components/HwpCanvas.tsx`)
-- [ ] genoffice 스프레드시트 수식 계산 엔진 연동 (`src/renderer/src/components/SheetCanvas.tsx`)
 
 ## P2 - 가까운 로드맵
 

@@ -10,9 +10,21 @@ interface HwpCanvasProps {
   showControlMarks: boolean;
   showParagraphMarks: boolean;
   showGridLines: boolean;
+  pageMargins?: { top: number; bottom: number; left: number; right: number };
 }
 
-export const HwpCanvas: React.FC<HwpCanvasProps> = ({ htmlContent, onContentChange, fontFamily, fontSize, lineHeight, zoomLevel, showControlMarks, showParagraphMarks, showGridLines }) => {
+export const HwpCanvas: React.FC<HwpCanvasProps> = ({
+  htmlContent,
+  onContentChange,
+  fontFamily,
+  fontSize,
+  lineHeight,
+  zoomLevel,
+  showControlMarks,
+  showParagraphMarks,
+  showGridLines,
+  pageMargins,
+}) => {
   const editorRef = useRef<HTMLDivElement>(null);
 
   // 1cm ~ 20cm 눈금 생성
@@ -50,6 +62,7 @@ export const HwpCanvas: React.FC<HwpCanvasProps> = ({ htmlContent, onContentChan
             fontFamily,
             fontSize: `${fontSize}pt`,
             lineHeight: `${lineHeight}%`,
+            padding: pageMargins ? `${pageMargins.top}mm ${pageMargins.right}mm ${pageMargins.bottom}mm ${pageMargins.left}mm` : undefined,
           }}
         >
           {/* A4 용지 네 모서리 재단 마커 (┌ ┐ └ ┘) */}

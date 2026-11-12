@@ -1,5 +1,7 @@
 import React from 'react';
 import {
+  Undo2,
+  Redo2,
   Scissors,
   Copy,
   Clipboard,
@@ -31,6 +33,14 @@ import {
 
 interface HwpRibbonProps {
   onExecCommand: (command: string, value?: string) => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onOpenFindModal: () => void;
+  onOpenPageSetupModal: () => void;
+  onOpenSymbolModal: () => void;
+  onOpenTableModal: () => void;
   fontFamily: string;
   onChangeFontFamily: (font: string) => void;
   fontSize: number;
@@ -52,6 +62,14 @@ interface HwpRibbonProps {
 
 export const HwpRibbon: React.FC<HwpRibbonProps> = ({
   onExecCommand,
+  onUndo,
+  onRedo,
+  canUndo = true,
+  canRedo = true,
+  onOpenFindModal,
+  onOpenPageSetupModal,
+  onOpenSymbolModal,
+  onOpenTableModal,
   fontFamily,
   onChangeFontFamily,
   fontSize,
@@ -78,8 +96,16 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
     <div className="omni-ribbon-container">
       {/* 1. 상단 툴바 (Upper Command Ribbon) */}
       <div className="omni-upper-ribbon">
-        {/* 클립보드 그룹 */}
+        {/* 클립보드 및 실행 취소 그룹 */}
         <div className="tool-cluster">
+          <button type="button" className="rhwp-tool-btn" onClick={onUndo} disabled={!canUndo} title="되돌리기 (Ctrl+Z)" style={{ opacity: !canUndo ? 0.45 : 1 }}>
+            <Undo2 size={18} color="#0055b8" />
+            <span>되돌리기</span>
+          </button>
+          <button type="button" className="rhwp-tool-btn" onClick={onRedo} disabled={!canRedo} title="다시실행 (Ctrl+Y)" style={{ opacity: !canRedo ? 0.45 : 1 }}>
+            <Redo2 size={18} color="#0055b8" />
+            <span>다시실행</span>
+          </button>
           <button type="button" className="rhwp-tool-btn" onClick={() => onExecCommand('cut')} title="오려두기 (Ctrl+X)">
             <Scissors size={18} color="#d97706" />
             <span>오려두기</span>
@@ -144,25 +170,7 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
 
         {/* 개체 삽입 그룹 */}
         <div className="tool-cluster">
-          <button
-            type="button"
-            className="rhwp-tool-btn"
-            onClick={() => {
-              const tableHtml = `
-                <table class="hwp-meta-table">
-                  <thead>
-                    <tr><th>구분</th><th>세부 내용</th><th>담당자</th><th>비고</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr><td>항목 1</td><td>내용을 입력하세요</td><td>홍길동</td><td>-</td></tr>
-                    <tr><td>항목 2</td><td>내용을 입력하세요</td><td>김철수</td><td>-</td></tr>
-                  </tbody>
-                </table><p><br/></p>
-              `;
-              onExecCommand('insertHTML', tableHtml);
-            }}
-            title="표(Table) 삽입 (Ctrl+N, T)"
-          >
+          <button type="button" className="rhwp-tool-btn" onClick={onOpenTableModal} title="표(Table) 삽입 (Ctrl+N, T)">
             <Table size={18} color="#0055b8" />
             <span>표 삽입</span>
           </button>
@@ -194,15 +202,7 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
             <Image size={18} color="#059669" />
             <span>그림</span>
           </button>
-          <button
-            type="button"
-            className="rhwp-tool-btn"
-            onClick={() => {
-              const sym = prompt('삽입할 특수문자 또는 기호를 선택하세요:', '※');
-              if (sym) onExecCommand('insertText', sym);
-            }}
-            title="문자표 삽입 (Ctrl+F10)"
-          >
+          <button type="button" className="rhwp-tool-btn" onClick={onOpenSymbolModal} title="문자표 삽입 (Ctrl+F10)">
             <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#475569' }}>※</span>
             <span>문자표</span>
           </button>
@@ -222,6 +222,10 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
 
         {/* 쪽 구성 및 도구 그룹 */}
         <div className="tool-cluster">
+          <button type="button" className="rhwp-tool-btn" onClick={onOpenPageSetupModal} title="쪽 여백 설정 (F7)">
+            <Sliders size={18} color="#0055b8" />
+            <span>쪽여백(F7)</span>
+          </button>
           <button type="button" className="rhwp-tool-btn" onClick={() => alert('머리말/꼬리말 설정 (Ctrl+N, H)')} title="머리말 설정">
             <FileText size={18} color="#64748b" />
             <span>머리말</span>
@@ -240,15 +244,7 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>[1]</span>
             <span>각주</span>
           </button>
-          <button
-            type="button"
-            className="rhwp-tool-btn"
-            onClick={() => {
-              const kw = prompt('찾을 단어를 입력하세요:');
-              if (kw) window.find(kw);
-            }}
-            title="찾기/바꾸기 (Ctrl+F)"
-          >
+          <button type="button" className="rhwp-tool-btn" onClick={onOpenFindModal} title="찾기/바꾸기 (Ctrl+F)">
             <Search size={18} color="#d97706" />
             <span>찾기</span>
           </button>

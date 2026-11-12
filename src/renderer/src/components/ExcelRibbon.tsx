@@ -1,21 +1,37 @@
 import React from 'react';
-import { Scissors, Copy, Clipboard, Paintbrush, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Sigma, Filter, Search, Grid, DollarSign, Percent } from 'lucide-react';
+import { Undo2, Redo2, Scissors, Copy, Clipboard, Paintbrush, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Sigma, Filter, Search, Grid, DollarSign, Percent } from 'lucide-react';
 
 interface ExcelRibbonProps {
   selectedCell: string;
   formulaValue: string;
   onChangeFormula: (val: string) => void;
   onApplyFormula: (formula: string) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
   isRibbonCollapsed: boolean;
 }
 
-export const ExcelRibbon: React.FC<ExcelRibbonProps> = ({ selectedCell, formulaValue, onChangeFormula, onApplyFormula, isRibbonCollapsed }) => {
+export const ExcelRibbon: React.FC<ExcelRibbonProps> = ({ selectedCell, formulaValue, onChangeFormula, onApplyFormula, onUndo, onRedo, canUndo = true, canRedo = true, isRibbonCollapsed }) => {
   return (
     <div className="omni-ribbon-container">
       {!isRibbonCollapsed && (
         <div className="omni-upper-ribbon">
-          {/* 클립보드 그룹 */}
+          {/* 실행 취소 및 클립보드 그룹 */}
           <div className="tool-cluster">
+            {onUndo && (
+              <button type="button" className="rhwp-tool-btn" onClick={onUndo} disabled={!canUndo} title="실행 취소 (Ctrl+Z)" style={{ opacity: !canUndo ? 0.45 : 1 }}>
+                <Undo2 size={18} color="#107c41" />
+                <span>실행취소</span>
+              </button>
+            )}
+            {onRedo && (
+              <button type="button" className="rhwp-tool-btn" onClick={onRedo} disabled={!canRedo} title="다시 실행 (Ctrl+Y)" style={{ opacity: !canRedo ? 0.45 : 1 }}>
+                <Redo2 size={18} color="#107c41" />
+                <span>다시실행</span>
+              </button>
+            )}
             <button type="button" className="rhwp-tool-btn" onClick={() => alert('붙여넣기')} title="붙여넣기 (Ctrl+V)">
               <Clipboard size={18} color="#107c41" />
               <span>붙여넣기</span>

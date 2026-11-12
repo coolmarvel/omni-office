@@ -171,6 +171,23 @@ ipcMain.handle('app:print', async () => {
   mainWindow.webContents.print({ silent: false, printBackground: true });
 });
 
+// PDF 내보내기 (golbin/hop 스타일)
+ipcMain.handle('app:exportPdf', async () => {
+  if (!mainWindow) return null;
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'PDF로 내보내기',
+    defaultPath: '문서.pdf',
+    filters: [{ name: 'PDF 문서 (*.pdf)', extensions: ['pdf'] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+  const pdfBuffer = await mainWindow.webContents.printToPDF({
+    pageSize: 'A4',
+    printBackground: true,
+  });
+  await writeFile(result.filePath, pdfBuffer);
+  return result.filePath;
+});
+
 // 창 제어
 ipcMain.handle('window:minimize', () => mainWindow?.minimize());
 ipcMain.handle('window:maximize', () => {

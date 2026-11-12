@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TitleBar } from './components/TitleBar';
 import { MenuBar } from './components/MenuBar';
 import { FileMenuDropdown } from './components/FileMenuDropdown';
@@ -8,7 +8,12 @@ import { ExcelRibbon } from './components/ExcelRibbon';
 import { HwpCanvas } from './components/HwpCanvas';
 import { SheetCanvas } from './components/SheetCanvas';
 import { StatusBar } from './components/StatusBar';
+import { FindReplaceModal } from './components/modals/FindReplaceModal';
+import { TableInsertModal } from './components/modals/TableInsertModal';
+import { PageSetupModal } from './components/modals/PageSetupModal';
+import { SymbolModal } from './components/modals/SymbolModal';
 import { DocumentTab, DocType, MenuTabId } from './types';
+import { computeRangeStats } from './utils/formulaEngine';
 
 // 초기 공공기관 샘플 HWP 문서
 const INITIAL_HWP_HTML = `
@@ -61,7 +66,7 @@ const INITIAL_HWP_HTML = `
 <div class="hwp-section-heading">2. 주요 세부 추진 과제</div>
 <p class="hwp-content-text">
   - <strong>초경량 데스크톱 독립 서비스 구축</strong>: 웹 브라우저 종속성을 탈피하고 단일 독립 실행 프로세스로 구동.<br/>
-  - <strong>표 및 문단 무결성 보존</strong>: 복잡한 한글 표 서식, 글자 모양 및 자간·줄간격을 깨짐 없이 네이티브급으로 가공.<br/>
+  - <strong>표 및 문단 무결성 보존</strong>: 복잡한 한글 표 서식, 글자 모양 및 자간 줄간격을 깨짐 없이 네이티브급으로 가공.<br/>
   - <strong>원클릭 로컬 입출력</strong>: Windows 탐색기와 완벽 연동되는 네이티브 다이얼로그 및 자동 세션 복구 지원.
 </p>
 
@@ -106,8 +111,8 @@ const INITIAL_SHEET_DATA: Record<string, string> = {
   F5: '진행중',
   A6: '합계',
   B6: '총 소요 예산',
-  C6: '115,000,000',
-  D6: '100,500,000',
+  C6: '=SUM(C2:C5)',
+  D6: '=SUM(D2:D5)',
   E6: '87.4',
   F6: '목표달성',
 };
@@ -137,8 +142,17 @@ export const App: React.FC = () => {
   const [isFileMenuOpen, setIsFileMenuOpen] = useState<boolean>(false);
   const [isRibbonCollapsed, setIsRibbonCollapsed] = useState<boolean>(false);
 
-  // HWP 상태
+  // 모달 제어 상태
+  const [isFindModalOpen, setIsFindModalOpen] = useState(false);
+  const [isPageSetupModalOpen, setIsPageSetupModalOpen] = useState(false);
+  const [isSymbolModalOpen, setIsSymbolModalOpen] = useState(false);
+  const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+
+  // HWP 상태 및 히스토리 스택 (Undo / Redo)
   const [hwpHtml, setHwpHtml] = useState<string>(INITIAL_HWP_HTML);
+  const [hwpHistory, setHwpHistory] = useState<string[]>([INITIAL_HWP_HTML]);
+  const [hwpHistoryIdx, setHwpHistoryIdx] = useState<number>(0);
+
   const [fontFamily, setFontFamily] = useState<string>("'Batang', '바탕', '함초롬바탕', serif");
   const [fontSize, setFontSize] = useState<number>(10.0);
   const [lineHeight, setLineHeight] = useState<number>(160);
@@ -147,10 +161,25 @@ export const App: React.FC = () => {
   const [showGridLines, setShowGridLines] = useState<boolean>(false);
   const [textColor, setTextColor] = useState<string>('#111111');
   const [highlightColor, setHighlightColor] = useState<string>('#fef08a');
+  const [pageMargins, setPageMargins] = useState<{
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+  }>({
+    top: 20,
+    bottom: 15,
+    left: 30,
+    right: 30,
+  });
 
-  // 엑셀 상태
+  // 엑셀 상태 및 히스토리 스택 (Undo / Redo)
   const [sheetData, setSheetData] = useState<Record<string, string>>(INITIAL_SHEET_DATA);
+  const [sheetHistory, setSheetHistory] = useState<Record<string, string>[]>([INITIAL_SHEET_DATA]);
+  const [sheetHistoryIdx, setSheetHistoryIdx] = useState<number>(0);
+
   const [selectedCell, setSelectedCell] = useState<string>('C2');
+  const [selectedRange, setSelectedRange] = useState<{ start: string; end: string } | null>(null);
   const [formulaValue, setFormulaValue] = useState<string>('45,000,000');
   const [activeSubSheet, setActiveSubSheet] = useState<string>('예산총괄');
 
@@ -159,11 +188,132 @@ export const App: React.FC = () => {
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
 
+  // HWP 내용 갱신 및 히스토리 기록
+  const updateHwpHtml = useCallback(
+    (newHtml: string, recordHistory = true) => {
+      setHwpHtml(newHtml);
+      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
+
+      if (recordHistory) {
+        setHwpHistory((prev) => {
+          const sliced = prev.slice(0, hwpHistoryIdx + 1);
+          if (sliced[sliced.length - 1] === newHtml) return prev;
+          const next = [...sliced, newHtml];
+          if (next.length > 50) next.shift();
+          return next;
+        });
+        setHwpHistoryIdx((prev) => Math.min(49, prev + 1));
+      }
+    },
+    [activeTabId, hwpHistoryIdx],
+  );
+
+  // HWP Undo / Redo
+  const handleHwpUndo = useCallback(() => {
+    if (hwpHistoryIdx > 0) {
+      const nextIdx = hwpHistoryIdx - 1;
+      setHwpHistoryIdx(nextIdx);
+      setHwpHtml(hwpHistory[nextIdx]);
+    }
+  }, [hwpHistory, hwpHistoryIdx]);
+
+  const handleHwpRedo = useCallback(() => {
+    if (hwpHistoryIdx < hwpHistory.length - 1) {
+      const nextIdx = hwpHistoryIdx + 1;
+      setHwpHistoryIdx(nextIdx);
+      setHwpHtml(hwpHistory[nextIdx]);
+    }
+  }, [hwpHistory, hwpHistoryIdx]);
+
   // 서식 명령 실행
-  const handleExecCommand = (command: string, value: string = '') => {
-    document.execCommand(command, false, value);
-    setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
-  };
+  const handleExecCommand = useCallback(
+    (command: string, value: string = '') => {
+      document.execCommand(command, false, value);
+      // execCommand 후 에디터 DOM 내용을 읽어 히스토리에 반영
+      const editorEl = document.querySelector('.hwp-editor-content');
+      if (editorEl) {
+        updateHwpHtml(editorEl.innerHTML, true);
+      }
+    },
+    [updateHwpHtml],
+  );
+
+  // 엑셀 셀 내용 변경 및 히스토리 기록
+  const handleCellChange = useCallback(
+    (coord: string, val: string) => {
+      setSheetData((prev) => {
+        const next = { ...prev, [coord]: val };
+        setSheetHistory((hPrev) => {
+          const sliced = hPrev.slice(0, sheetHistoryIdx + 1);
+          return [...sliced, next];
+        });
+        setSheetHistoryIdx((iPrev) => iPrev + 1);
+        return next;
+      });
+      setFormulaValue(val);
+      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
+    },
+    [activeTabId, sheetHistoryIdx],
+  );
+
+  // 엑셀 셀 다중 삭제
+  const handleDeleteCells = useCallback(
+    (coords: string[]) => {
+      setSheetData((prev) => {
+        const next = { ...prev };
+        coords.forEach((c) => {
+          delete next[c];
+        });
+        setSheetHistory((hPrev) => {
+          const sliced = hPrev.slice(0, sheetHistoryIdx + 1);
+          return [...sliced, next];
+        });
+        setSheetHistoryIdx((iPrev) => iPrev + 1);
+        return next;
+      });
+      setFormulaValue('');
+      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
+    },
+    [activeTabId, sheetHistoryIdx],
+  );
+
+  // 엑셀 Undo / Redo
+  const handleSheetUndo = useCallback(() => {
+    if (sheetHistoryIdx > 0) {
+      const nextIdx = sheetHistoryIdx - 1;
+      setSheetHistoryIdx(nextIdx);
+      const prevData = sheetHistory[nextIdx];
+      setSheetData(prevData);
+      setFormulaValue(prevData[selectedCell] || '');
+    }
+  }, [selectedCell, sheetHistory, sheetHistoryIdx]);
+
+  const handleSheetRedo = useCallback(() => {
+    if (sheetHistoryIdx < sheetHistory.length - 1) {
+      const nextIdx = sheetHistoryIdx + 1;
+      setSheetHistoryIdx(nextIdx);
+      const nextData = sheetHistory[nextIdx];
+      setSheetData(nextData);
+      setFormulaValue(nextData[selectedCell] || '');
+    }
+  }, [selectedCell, sheetHistory, sheetHistoryIdx]);
+
+  // 통합 Undo / Redo 디스패처
+  const handleUndo = useCallback(() => {
+    if (activeTab.docType === 'xlsx') {
+      handleSheetUndo();
+    } else {
+      handleHwpUndo();
+    }
+  }, [activeTab.docType, handleHwpUndo, handleSheetUndo]);
+
+  const handleRedo = useCallback(() => {
+    if (activeTab.docType === 'xlsx') {
+      handleSheetRedo();
+    } else {
+      handleHwpRedo();
+    }
+  }, [activeTab.docType, handleHwpRedo, handleSheetRedo]);
 
   // 새 문서 생성
   const handleNewDoc = (docType: DocType) => {
@@ -220,7 +370,7 @@ export const App: React.FC = () => {
   };
 
   // 파일 저장 (기존 경로 덮어쓰기)
-  const handleSaveFile = async () => {
+  const handleSaveFile = useCallback(async () => {
     try {
       if (window.electronAPI?.saveFileDirect && activeTab.filePath) {
         const payload = activeTab.docType === 'xlsx' ? JSON.stringify(sheetData) : hwpHtml;
@@ -237,10 +387,10 @@ export const App: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [activeTab, hwpHtml, sheetData]);
 
   // 다른 이름으로 저장 다이얼로그
-  const handleSaveAsFile = async () => {
+  const handleSaveAsFile = useCallback(async () => {
     try {
       if (window.electronAPI?.saveFileDialog) {
         const payload = activeTab.docType === 'xlsx' ? JSON.stringify(sheetData) : hwpHtml;
@@ -261,16 +411,33 @@ export const App: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [activeTab, hwpHtml, sheetData]);
+
+  // PDF 내보내기 (golbin/hop 스타일)
+  const handleExportPdf = useCallback(async () => {
+    try {
+      if (window.electronAPI?.exportPdf) {
+        const savedPath = await window.electronAPI.exportPdf();
+        if (savedPath) {
+          alert(`[PDF 내보내기 완료]\n${savedPath}`);
+        }
+      } else {
+        window.print();
+      }
+    } catch (e) {
+      console.error('PDF 내보내기 실패:', e);
+      alert('PDF 내보내기 중 오류가 발생했습니다.');
+    }
+  }, []);
 
   // 인쇄
-  const handlePrint = () => {
+  const handlePrint = useCallback(() => {
     if (window.electronAPI?.print) {
       window.electronAPI.print();
     } else {
       window.print();
     }
-  };
+  }, []);
 
   // 엑셀 셀 선택
   const handleCellClick = (coord: string) => {
@@ -278,18 +445,135 @@ export const App: React.FC = () => {
     setFormulaValue(sheetData[coord] || '');
   };
 
-  // 엑셀 셀 내용 변경
-  const handleCellChange = (coord: string, val: string) => {
-    setSheetData((prev) => ({ ...prev, [coord]: val }));
-    setFormulaValue(val);
-    setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
-  };
-
   // 수식 적용
   const handleApplyFormula = (formula: string) => {
     setFormulaValue(formula);
     handleCellChange(selectedCell, formula);
   };
+
+  // 표 만들기 모달에서 생성 요청
+  const handleInsertTable = (rows: number, cols: number) => {
+    let rowsHtml = '';
+    for (let r = 0; r < rows; r++) {
+      rowsHtml += '<tr>';
+      for (let c = 0; c < cols; c++) {
+        if (r === 0) {
+          rowsHtml += `<th>열 ${c + 1}</th>`;
+        } else {
+          rowsHtml += '<td>&nbsp;</td>';
+        }
+      }
+      rowsHtml += '</tr>';
+    }
+    const tableHtml = `
+      <table class="hwp-meta-table">
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table><p><br/></p>
+    `;
+    handleExecCommand('insertHTML', tableHtml);
+  };
+
+  // 문자표 선택
+  const handleSelectSymbol = (sym: string) => {
+    if (activeTab.docType === 'xlsx') {
+      handleCellChange(selectedCell, (sheetData[selectedCell] || '') + sym);
+    } else {
+      handleExecCommand('insertText', sym);
+    }
+  };
+
+  // 찾기 및 바꾸기
+  const handleFind = (term: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((window as any).find) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).find(term);
+    }
+  };
+
+  const handleReplaceAll = (findTerm: string, replaceTerm: string) => {
+    if (!findTerm) return;
+    if (activeTab.docType === 'hwp') {
+      const replaced = hwpHtml.replaceAll(findTerm, replaceTerm);
+      updateHwpHtml(replaced, true);
+      alert(`[${findTerm}] 단어를 모두 [${replaceTerm}]으로 바꾸었습니다.`);
+    } else {
+      setSheetData((prev) => {
+        const next: Record<string, string> = {};
+        for (const [k, v] of Object.entries(prev)) {
+          next[k] = v.replaceAll(findTerm, replaceTerm);
+        }
+        return next;
+      });
+      alert(`스프레드시트에서 [${findTerm}] 단어를 모두 바꾸었습니다.`);
+    }
+  };
+
+  // 전역 단축키 바인딩 (Ctrl+Z, Ctrl+Y, Ctrl+S, Ctrl+O, Ctrl+P, Ctrl+E, Ctrl+F, F7, Ctrl+F10)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+
+      if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndo();
+      } else if ((isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === 'z') || (isCtrlOrMeta && e.key.toLowerCase() === 'y')) {
+        e.preventDefault();
+        handleRedo();
+      } else if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveFile();
+      } else if (isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveAsFile();
+      } else if (isCtrlOrMeta && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        handleOpenFile();
+      } else if (isCtrlOrMeta && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        handlePrint();
+      } else if (isCtrlOrMeta && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        handleExportPdf();
+      } else if (isCtrlOrMeta && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsFindModalOpen(true);
+      } else if (e.key === 'F7') {
+        e.preventDefault();
+        setIsPageSetupModalOpen(true);
+      } else if (isCtrlOrMeta && e.key === 'F10') {
+        e.preventDefault();
+        setIsSymbolModalOpen(true);
+      } else if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        handleNewDoc('hwp');
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [handleUndo, handleRedo, handleSaveFile, handleSaveAsFile, handleOpenFile, handlePrint, handleExportPdf]);
+
+  // HWP 텍스트 통계 계산 (실시간)
+  const hwpStats = useMemo(() => {
+    if (activeTab.docType !== 'hwp') return undefined;
+    const temp = document.createElement('div');
+    temp.innerHTML = hwpHtml;
+    const text = temp.textContent || '';
+    const charCount = text.length;
+    const charCountNoSpaces = text.replace(/\s+/g, '').length;
+    const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+    return { charCount, charCountNoSpaces, wordCount };
+  }, [hwpHtml, activeTab.docType]);
+
+  // 엑셀 범위 통계 계산 (실시간)
+  const sheetStats = useMemo(() => {
+    if (activeTab.docType !== 'xlsx') return null;
+    const rangeStr = selectedRange && selectedRange.start !== selectedRange.end ? `${selectedRange.start}:${selectedRange.end}` : selectedCell;
+    return computeRangeStats(rangeStr, sheetData);
+  }, [sheetData, selectedCell, selectedRange, activeTab.docType]);
 
   return (
     <div className="omni-shell">
@@ -315,6 +599,7 @@ export const App: React.FC = () => {
         onSaveFile={handleSaveFile}
         onSaveAsFile={handleSaveAsFile}
         onPrint={handlePrint}
+        onExportPdf={handleExportPdf}
       />
 
       {/* 4. 리본 툴바 (문서 타입에 따라 rhwp vs genoffice 융합 전환) */}
@@ -327,11 +612,23 @@ export const App: React.FC = () => {
             handleCellChange(selectedCell, val);
           }}
           onApplyFormula={handleApplyFormula}
+          onUndo={handleSheetUndo}
+          onRedo={handleSheetRedo}
+          canUndo={sheetHistoryIdx > 0}
+          canRedo={sheetHistoryIdx < sheetHistory.length - 1}
           isRibbonCollapsed={isRibbonCollapsed}
         />
       ) : (
         <HwpRibbon
           onExecCommand={handleExecCommand}
+          onUndo={handleHwpUndo}
+          onRedo={handleHwpRedo}
+          canUndo={hwpHistoryIdx > 0}
+          canRedo={hwpHistoryIdx < hwpHistory.length - 1}
+          onOpenFindModal={() => setIsFindModalOpen(true)}
+          onOpenPageSetupModal={() => setIsPageSetupModalOpen(true)}
+          onOpenSymbolModal={() => setIsSymbolModalOpen(true)}
+          onOpenTableModal={() => setIsTableModalOpen(true)}
           fontFamily={fontFamily}
           onChangeFontFamily={setFontFamily}
           fontSize={fontSize}
@@ -361,18 +658,18 @@ export const App: React.FC = () => {
           <SheetCanvas
             sheetData={sheetData}
             selectedCell={selectedCell}
+            selectedRange={selectedRange}
             onSelectCell={handleCellClick}
+            onSelectRange={(start, end) => setSelectedRange({ start, end })}
             onCellChange={handleCellChange}
+            onDeleteCells={handleDeleteCells}
             activeSheet={activeSubSheet}
             onSelectSheet={setActiveSubSheet}
           />
         ) : (
           <HwpCanvas
             htmlContent={hwpHtml}
-            onContentChange={(newHtml) => {
-              setHwpHtml(newHtml);
-              setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
-            }}
+            onContentChange={(newHtml) => updateHwpHtml(newHtml, true)}
             fontFamily={fontFamily}
             fontSize={fontSize}
             lineHeight={lineHeight}
@@ -380,12 +677,22 @@ export const App: React.FC = () => {
             showControlMarks={showControlMarks}
             showParagraphMarks={showParagraphMarks}
             showGridLines={showGridLines}
+            pageMargins={pageMargins}
           />
         )}
       </div>
 
-      {/* 7. 하단 상태 표시줄 */}
-      <StatusBar activeTab={activeTab} zoomLevel={zoomLevel} onChangeZoom={setZoomLevel} />
+      {/* 7. 하단 상태 표시줄 (실시간 통계 및 배율) */}
+      <StatusBar activeTab={activeTab} zoomLevel={zoomLevel} onChangeZoom={setZoomLevel} hwpStats={hwpStats} sheetStats={sheetStats} />
+
+      {/* 8. 대화형 모달 다이얼로그 (찾기/바꾸기, 쪽 여백, 문자표, 표 만들기) */}
+      <FindReplaceModal isOpen={isFindModalOpen} onClose={() => setIsFindModalOpen(false)} onFind={handleFind} onReplaceAll={handleReplaceAll} />
+
+      <PageSetupModal isOpen={isPageSetupModalOpen} onClose={() => setIsPageSetupModalOpen(false)} onApplyMargin={(margins) => setPageMargins(margins)} />
+
+      <SymbolModal isOpen={isSymbolModalOpen} onClose={() => setIsSymbolModalOpen(false)} onSelectSymbol={handleSelectSymbol} />
+
+      <TableInsertModal isOpen={isTableModalOpen} onClose={() => setIsTableModalOpen(false)} onInsertTable={handleInsertTable} />
     </div>
   );
 };

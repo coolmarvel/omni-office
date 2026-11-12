@@ -10,9 +10,10 @@ interface FileMenuDropdownProps {
   onSaveFile: () => void;
   onSaveAsFile: () => void;
   onPrint: () => void;
+  onExportPdf: () => void;
 }
 
-export const FileMenuDropdown: React.FC<FileMenuDropdownProps> = ({ isOpen, onClose, onNewDoc, onOpenFile, onSaveFile, onSaveAsFile, onPrint }) => {
+export const FileMenuDropdown: React.FC<FileMenuDropdownProps> = ({ isOpen, onClose, onNewDoc, onOpenFile, onSaveFile, onSaveAsFile, onPrint, onExportPdf }) => {
   React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -124,6 +125,19 @@ export const FileMenuDropdown: React.FC<FileMenuDropdownProps> = ({ isOpen, onCl
         </button>
 
         <div className="file-menu-divider" />
+
+        <button
+          type="button"
+          className="file-menu-item"
+          onClick={() => {
+            onExportPdf();
+            onClose();
+          }}
+        >
+          <FileText size={16} color="#dc2626" />
+          <span>PDF로 내보내기...</span>
+          <span className="file-menu-shortcut">Ctrl+E</span>
+        </button>
 
         <button
           type="button"

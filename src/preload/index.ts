@@ -19,6 +19,7 @@ export interface ElectronApi {
     }>
   >;
   print: () => Promise<void>;
+  exportPdf: () => Promise<string | null>;
   minimizeWindow: () => Promise<void>;
   maximizeWindow: () => Promise<void>;
   closeWindow: () => Promise<void>;
@@ -30,6 +31,7 @@ const api: ElectronApi = {
   saveFileDirect: (opts) => ipcRenderer.invoke('fs:saveFileDirect', opts),
   getRecentList: () => ipcRenderer.invoke('recent:getList'),
   print: () => ipcRenderer.invoke('app:print'),
+  exportPdf: () => ipcRenderer.invoke('app:exportPdf'),
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
   closeWindow: () => ipcRenderer.invoke('window:close'),
