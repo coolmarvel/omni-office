@@ -1,6 +1,6 @@
 [package]
 name = "omni-office"
-version = "0.2.0"
+version = "0.3.0"
 description = "Super fast unified desktop document editor for HWP and Office"
 authors = ["SeongHyun Lee <coolmarvel@gmail.com>"]
 license = "MIT"

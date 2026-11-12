@@ -1,6 +1,6 @@
 {
   "name": "omni-office",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Omni Office - 한글(HWP/HWPX) 및 스프레드시트(XLSX) 통합 데스크톱 오피스",
   "author": "이성현 (SeongHyun Lee)",
   "license": "MIT",

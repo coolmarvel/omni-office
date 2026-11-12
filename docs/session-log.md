@@ -12,6 +12,22 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-11-12 - v0.3.0 승격, HWP 커서 점프 및 Undo 수정, 폰트/사이즈 적용, 스프레드시트 인라인 편집 및 서식 연동
+
+- **요청/피드백**:
+  1. Ctrl+Z Undo 미작동, 폰트/폰트크기 미적용, 표/셀 편집 미반영 문제 해결 요청
+  2. 버전 0.2.0 고정 문제 제기 및 버전 승격 요청
+- **수정**:
+  - 버전 승격: `scripts/bump-version.js`로 v0.2.0 -> v0.3.0 승격 (package.json, Cargo.toml, version.ts 원자적 동기화)
+  - HWP 커서 점프 및 Undo 근본 수정: `HwpCanvas.tsx`에서 React 리렌더링마다 innerHTML을 덮어쓰던 문제를 제거하고, 외부 변경 시에만 동기화하도록 수정하여 브라우저 네이티브 Undo 스택과 커서 위치 완벽 보존
+  - HWP 서식 적용: `HwpRibbon.tsx`의 모든 버튼에 `onMouseDown={(e) => e.preventDefault()}`를 적용하여 버튼 클릭 시 에디터 텍스트 선택이 해제되던 결함 수정. 선택 영역에 span 인라인 스타일로 폰트 크기 및 글꼴 직접 주입
+  - styles.css 서식 상속: `.hwp-content-text`, `.hwp-meta-table`, `.hwp-section-heading`의 하드코딩 폰트/폰트크기를 `inherit`으로 변경하여 리본 설정이 전체 문서에 실시간 반영되도록 수정
+  - 스프레드시트 인라인 편집: `SheetCanvas.tsx`에 `<input className="sheet-cell-editor">`를 도입하여 셀 클릭 후 바로 타이핑, 더블클릭, F2, Enter 모두 정상 동작하도록 개선
+  - 스프레드시트 셀 서식: `cellStyles` 상태 및 `ExcelRibbon.tsx`의 굵게, 기울임, 밑줄, 글꼴, 글자크기, 정렬, 배경색 버튼 핸들러를 완전 연동하여 개별 셀 및 선택 범위 전체에 실시간 서식 적용 지원
+  - 패키징: v0.3.0 NSIS 단일 인스톨러 `OmniOffice-Setup-0.3.0.exe` (105MB, MD5: 9cf00c5b1325df3572feb4e0e282c7f9) 빌드 완료
+- **검증**: `npm run build`, Playwright 7개 테스트 스위트(`npm run test:ui`) 100% 무결점 통과
+- **다음**: 사용자 실기 테스트 및 피드백 수렴
+
 ## 2026-11-12 - 오픈소스(rhwp, genoffice, golbin/hop) 기반 기능 구현, UI 상호작용 및 테스트 검증
 
 - **요청/피드백**:

@@ -4,7 +4,7 @@ import { MenuBar } from './components/MenuBar';
 import { FileMenuDropdown } from './components/FileMenuDropdown';
 import { DocTabs } from './components/DocTabs';
 import { HwpRibbon } from './components/HwpRibbon';
-import { ExcelRibbon } from './components/ExcelRibbon';
+import { ExcelRibbon, CellStyle } from './components/ExcelRibbon';
 import { HwpCanvas } from './components/HwpCanvas';
 import { SheetCanvas } from './components/SheetCanvas';
 import { StatusBar } from './components/StatusBar';
@@ -14,6 +14,7 @@ import { PageSetupModal } from './components/modals/PageSetupModal';
 import { SymbolModal } from './components/modals/SymbolModal';
 import { DocumentTab, DocType, MenuTabId } from './types';
 import { computeRangeStats } from './utils/formulaEngine';
+import { getCellsInRange } from './utils/spreadsheetRange';
 
 // 초기 공공기관 샘플 HWP 문서
 const INITIAL_HWP_HTML = `
@@ -117,6 +118,27 @@ const INITIAL_SHEET_DATA: Record<string, string> = {
   F6: '목표달성',
 };
 
+// 초기 스프레드시트 셀 스타일
+const INITIAL_CELL_STYLES: Record<string, CellStyle> = {
+  A1: { bold: true, align: 'center', bgColor: '#f8f9fa' },
+  B1: { bold: true, align: 'center', bgColor: '#f8f9fa' },
+  C1: { bold: true, align: 'center', bgColor: '#f8f9fa' },
+  D1: { bold: true, align: 'center', bgColor: '#f8f9fa' },
+  E1: { bold: true, align: 'center', bgColor: '#f8f9fa' },
+  F1: { bold: true, align: 'center', bgColor: '#f8f9fa' },
+  A6: { bold: true, align: 'center', bgColor: '#f2f9f4' },
+  B6: { bold: true, align: 'left', bgColor: '#f2f9f4' },
+  C6: { bold: true, align: 'right', bgColor: '#f2f9f4' },
+  D6: { bold: true, align: 'right', bgColor: '#f2f9f4' },
+  E6: { bold: true, align: 'right', bgColor: '#f2f9f4' },
+  F6: { bold: true, align: 'center', bgColor: '#f2f9f4' },
+};
+
+interface SheetSnapshot {
+  data: Record<string, string>;
+  styles: Record<string, CellStyle>;
+}
+
 export const App: React.FC = () => {
   // 문서 탭 관리
   const [tabs, setTabs] = useState<DocumentTab[]>([
@@ -148,11 +170,8 @@ export const App: React.FC = () => {
   const [isSymbolModalOpen, setIsSymbolModalOpen] = useState(false);
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
 
-  // HWP 상태 및 히스토리 스택 (Undo / Redo)
+  // HWP 상태
   const [hwpHtml, setHwpHtml] = useState<string>(INITIAL_HWP_HTML);
-  const [hwpHistory, setHwpHistory] = useState<string[]>([INITIAL_HWP_HTML]);
-  const [hwpHistoryIdx, setHwpHistoryIdx] = useState<number>(0);
-
   const [fontFamily, setFontFamily] = useState<string>("'Batang', '바탕', '함초롬바탕', serif");
   const [fontSize, setFontSize] = useState<number>(10.0);
   const [lineHeight, setLineHeight] = useState<number>(160);
@@ -175,7 +194,8 @@ export const App: React.FC = () => {
 
   // 엑셀 상태 및 히스토리 스택 (Undo / Redo)
   const [sheetData, setSheetData] = useState<Record<string, string>>(INITIAL_SHEET_DATA);
-  const [sheetHistory, setSheetHistory] = useState<Record<string, string>[]>([INITIAL_SHEET_DATA]);
+  const [cellStyles, setCellStyles] = useState<Record<string, CellStyle>>(INITIAL_CELL_STYLES);
+  const [sheetHistory, setSheetHistory] = useState<SheetSnapshot[]>([{ data: INITIAL_SHEET_DATA, styles: INITIAL_CELL_STYLES }]);
   const [sheetHistoryIdx, setSheetHistoryIdx] = useState<number>(0);
 
   const [selectedCell, setSelectedCell] = useState<string>('C2');
@@ -188,54 +208,34 @@ export const App: React.FC = () => {
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
 
-  // HWP 내용 갱신 및 히스토리 기록
-  const updateHwpHtml = useCallback(
-    (newHtml: string, recordHistory = true) => {
-      setHwpHtml(newHtml);
-      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
-
-      if (recordHistory) {
-        setHwpHistory((prev) => {
-          const sliced = prev.slice(0, hwpHistoryIdx + 1);
-          if (sliced[sliced.length - 1] === newHtml) return prev;
-          const next = [...sliced, newHtml];
-          if (next.length > 50) next.shift();
-          return next;
-        });
-        setHwpHistoryIdx((prev) => Math.min(49, prev + 1));
-      }
-    },
-    [activeTabId, hwpHistoryIdx],
-  );
-
-  // HWP Undo / Redo
+  // HWP Undo / Redo (브라우저 contentEditable 네이티브 실행 엔진 활용)
   const handleHwpUndo = useCallback(() => {
-    if (hwpHistoryIdx > 0) {
-      const nextIdx = hwpHistoryIdx - 1;
-      setHwpHistoryIdx(nextIdx);
-      setHwpHtml(hwpHistory[nextIdx]);
+    const editor = document.querySelector('.hwp-editor-content') as HTMLElement;
+    if (editor) {
+      editor.focus();
+      document.execCommand('undo');
+      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
     }
-  }, [hwpHistory, hwpHistoryIdx]);
+  }, [activeTabId]);
 
   const handleHwpRedo = useCallback(() => {
-    if (hwpHistoryIdx < hwpHistory.length - 1) {
-      const nextIdx = hwpHistoryIdx + 1;
-      setHwpHistoryIdx(nextIdx);
-      setHwpHtml(hwpHistory[nextIdx]);
+    const editor = document.querySelector('.hwp-editor-content') as HTMLElement;
+    if (editor) {
+      editor.focus();
+      document.execCommand('redo');
+      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
     }
-  }, [hwpHistory, hwpHistoryIdx]);
+  }, [activeTabId]);
 
   // 서식 명령 실행
   const handleExecCommand = useCallback(
     (command: string, value: string = '') => {
+      const editor = document.querySelector('.hwp-editor-content') as HTMLElement;
+      editor?.focus();
       document.execCommand(command, false, value);
-      // execCommand 후 에디터 DOM 내용을 읽어 히스토리에 반영
-      const editorEl = document.querySelector('.hwp-editor-content');
-      if (editorEl) {
-        updateHwpHtml(editorEl.innerHTML, true);
-      }
+      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
     },
-    [updateHwpHtml],
+    [activeTabId],
   );
 
   // 엑셀 셀 내용 변경 및 히스토리 기록
@@ -245,7 +245,7 @@ export const App: React.FC = () => {
         const next = { ...prev, [coord]: val };
         setSheetHistory((hPrev) => {
           const sliced = hPrev.slice(0, sheetHistoryIdx + 1);
-          return [...sliced, next];
+          return [...sliced, { data: next, styles: cellStyles }];
         });
         setSheetHistoryIdx((iPrev) => iPrev + 1);
         return next;
@@ -253,7 +253,29 @@ export const App: React.FC = () => {
       setFormulaValue(val);
       setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
     },
-    [activeTabId, sheetHistoryIdx],
+    [activeTabId, cellStyles, sheetHistoryIdx],
+  );
+
+  // 엑셀 서식 스타일 변경 (선택 영역 전체에 동시 적용)
+  const handleUpdateCellStyle = useCallback(
+    (styleUpdate: Partial<CellStyle>) => {
+      const targetCells = selectedRange && selectedRange.start !== selectedRange.end ? getCellsInRange(`${selectedRange.start}:${selectedRange.end}`) : [selectedCell];
+
+      setCellStyles((prev) => {
+        const next = { ...prev };
+        for (const c of targetCells) {
+          next[c] = { ...(next[c] || {}), ...styleUpdate };
+        }
+        setSheetHistory((hPrev) => {
+          const sliced = hPrev.slice(0, sheetHistoryIdx + 1);
+          return [...sliced, { data: sheetData, styles: next }];
+        });
+        setSheetHistoryIdx((iPrev) => iPrev + 1);
+        return next;
+      });
+      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
+    },
+    [selectedRange, selectedCell, sheetData, sheetHistoryIdx, activeTabId],
   );
 
   // 엑셀 셀 다중 삭제
@@ -266,7 +288,7 @@ export const App: React.FC = () => {
         });
         setSheetHistory((hPrev) => {
           const sliced = hPrev.slice(0, sheetHistoryIdx + 1);
-          return [...sliced, next];
+          return [...sliced, { data: next, styles: cellStyles }];
         });
         setSheetHistoryIdx((iPrev) => iPrev + 1);
         return next;
@@ -274,7 +296,7 @@ export const App: React.FC = () => {
       setFormulaValue('');
       setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
     },
-    [activeTabId, sheetHistoryIdx],
+    [activeTabId, cellStyles, sheetHistoryIdx],
   );
 
   // 엑셀 Undo / Redo
@@ -282,9 +304,10 @@ export const App: React.FC = () => {
     if (sheetHistoryIdx > 0) {
       const nextIdx = sheetHistoryIdx - 1;
       setSheetHistoryIdx(nextIdx);
-      const prevData = sheetHistory[nextIdx];
-      setSheetData(prevData);
-      setFormulaValue(prevData[selectedCell] || '');
+      const prevSnapshot = sheetHistory[nextIdx];
+      setSheetData(prevSnapshot.data);
+      setCellStyles(prevSnapshot.styles);
+      setFormulaValue(prevSnapshot.data[selectedCell] || '');
     }
   }, [selectedCell, sheetHistory, sheetHistoryIdx]);
 
@@ -292,13 +315,14 @@ export const App: React.FC = () => {
     if (sheetHistoryIdx < sheetHistory.length - 1) {
       const nextIdx = sheetHistoryIdx + 1;
       setSheetHistoryIdx(nextIdx);
-      const nextData = sheetHistory[nextIdx];
-      setSheetData(nextData);
-      setFormulaValue(nextData[selectedCell] || '');
+      const nextSnapshot = sheetHistory[nextIdx];
+      setSheetData(nextSnapshot.data);
+      setCellStyles(nextSnapshot.styles);
+      setFormulaValue(nextSnapshot.data[selectedCell] || '');
     }
   }, [selectedCell, sheetHistory, sheetHistoryIdx]);
 
-  // 통합 Undo / Redo 디스패처
+  // 통합 Undo / Redo
   const handleUndo = useCallback(() => {
     if (activeTab.docType === 'xlsx') {
       handleSheetUndo();
@@ -497,7 +521,8 @@ export const App: React.FC = () => {
     if (!findTerm) return;
     if (activeTab.docType === 'hwp') {
       const replaced = hwpHtml.replaceAll(findTerm, replaceTerm);
-      updateHwpHtml(replaced, true);
+      setHwpHtml(replaced);
+      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
       alert(`[${findTerm}] 단어를 모두 [${replaceTerm}]으로 바꾸었습니다.`);
     } else {
       setSheetData((prev) => {
@@ -517,11 +542,27 @@ export const App: React.FC = () => {
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
 
       if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        handleUndo();
+        if (activeTab.docType === 'hwp') {
+          const inEditor = document.activeElement && document.activeElement.closest('.hwp-editor-content');
+          if (!inEditor) {
+            e.preventDefault();
+            handleHwpUndo();
+          }
+        } else {
+          e.preventDefault();
+          handleSheetUndo();
+        }
       } else if ((isCtrlOrMeta && e.shiftKey && e.key.toLowerCase() === 'z') || (isCtrlOrMeta && e.key.toLowerCase() === 'y')) {
-        e.preventDefault();
-        handleRedo();
+        if (activeTab.docType === 'hwp') {
+          const inEditor = document.activeElement && document.activeElement.closest('.hwp-editor-content');
+          if (!inEditor) {
+            e.preventDefault();
+            handleHwpRedo();
+          }
+        } else {
+          e.preventDefault();
+          handleSheetRedo();
+        }
       } else if (isCtrlOrMeta && !e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleSaveFile();
@@ -554,7 +595,7 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [handleUndo, handleRedo, handleSaveFile, handleSaveAsFile, handleOpenFile, handlePrint, handleExportPdf]);
+  }, [handleHwpUndo, handleHwpRedo, handleSheetUndo, handleSheetRedo, handleSaveFile, handleSaveAsFile, handleOpenFile, handlePrint, handleExportPdf, activeTab.docType]);
 
   // HWP 텍스트 통계 계산 (실시간)
   const hwpStats = useMemo(() => {
@@ -574,6 +615,8 @@ export const App: React.FC = () => {
     const rangeStr = selectedRange && selectedRange.start !== selectedRange.end ? `${selectedRange.start}:${selectedRange.end}` : selectedCell;
     return computeRangeStats(rangeStr, sheetData);
   }, [sheetData, selectedCell, selectedRange, activeTab.docType]);
+
+  const currentCellStyle = cellStyles[selectedCell];
 
   return (
     <div className="omni-shell">
@@ -606,12 +649,15 @@ export const App: React.FC = () => {
       {activeTab.docType === 'xlsx' ? (
         <ExcelRibbon
           selectedCell={selectedCell}
+          selectedRange={selectedRange}
           formulaValue={formulaValue}
           onChangeFormula={(val) => {
             setFormulaValue(val);
             handleCellChange(selectedCell, val);
           }}
           onApplyFormula={handleApplyFormula}
+          currentCellStyle={currentCellStyle}
+          onUpdateCellStyle={handleUpdateCellStyle}
           onUndo={handleSheetUndo}
           onRedo={handleSheetRedo}
           canUndo={sheetHistoryIdx > 0}
@@ -623,8 +669,8 @@ export const App: React.FC = () => {
           onExecCommand={handleExecCommand}
           onUndo={handleHwpUndo}
           onRedo={handleHwpRedo}
-          canUndo={hwpHistoryIdx > 0}
-          canRedo={hwpHistoryIdx < hwpHistory.length - 1}
+          canUndo={true}
+          canRedo={true}
           onOpenFindModal={() => setIsFindModalOpen(true)}
           onOpenPageSetupModal={() => setIsPageSetupModalOpen(true)}
           onOpenSymbolModal={() => setIsSymbolModalOpen(true)}
@@ -657,6 +703,7 @@ export const App: React.FC = () => {
         {activeTab.docType === 'xlsx' ? (
           <SheetCanvas
             sheetData={sheetData}
+            cellStyles={cellStyles}
             selectedCell={selectedCell}
             selectedRange={selectedRange}
             onSelectCell={handleCellClick}
@@ -669,7 +716,10 @@ export const App: React.FC = () => {
         ) : (
           <HwpCanvas
             htmlContent={hwpHtml}
-            onContentChange={(newHtml) => updateHwpHtml(newHtml, true)}
+            onContentChange={(newHtml) => {
+              setHwpHtml(newHtml);
+              setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, isModified: true } : t)));
+            }}
             fontFamily={fontFamily}
             fontSize={fontSize}
             lineHeight={lineHeight}

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 
 interface HwpCanvasProps {
   htmlContent: string;
@@ -26,6 +26,14 @@ export const HwpCanvas: React.FC<HwpCanvasProps> = ({
   pageMargins,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
+
+  // Sync content only when it differs (external load, tab switch, etc.)
+  // and NOT on user keystrokes so cursor and native Undo/Redo are fully preserved!
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== htmlContent) {
+      editorRef.current.innerHTML = htmlContent;
+    }
+  }, [htmlContent]);
 
   // 1cm ~ 20cm 눈금 생성
   const cmTicks = Array.from({ length: 20 }, (_, i) => i + 1);
@@ -71,13 +79,12 @@ export const HwpCanvas: React.FC<HwpCanvasProps> = ({
           <div className="hwp-corner-guide guide-bl" />
           <div className="hwp-corner-guide guide-br" />
 
-          {/* 실제 편집 본문 영역 (dangerouslySetInnerHTML 전용 단독 요소) */}
+          {/* 실제 편집 본문 영역 */}
           <div
             className="hwp-editor-content"
             contentEditable
             suppressContentEditableWarning
             ref={editorRef}
-            dangerouslySetInnerHTML={{ __html: htmlContent }}
             onInput={(e) => {
               onContentChange(e.currentTarget.innerHTML);
             }}

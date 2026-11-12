@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import { parseCellCoord, parseRange, isCellInRange, colIndexToName, getCellsInRange } from '../utils/spreadsheetRange';
 import { evaluateFormula } from '../utils/formulaEngine';
+import { CellStyle } from './ExcelRibbon';
 
 interface SheetCanvasProps {
   sheetData: Record<string, string>;
+  cellStyles?: Record<string, CellStyle>;
   selectedCell: string;
   selectedRange?: { start: string; end: string } | null;
   onSelectCell: (coord: string) => void;
@@ -15,7 +17,18 @@ interface SheetCanvasProps {
   onSelectSheet: (sheetName: string) => void;
 }
 
-export const SheetCanvas: React.FC<SheetCanvasProps> = ({ sheetData, selectedCell, selectedRange, onSelectCell, onSelectRange, onCellChange, onDeleteCells, activeSheet, onSelectSheet }) => {
+export const SheetCanvas: React.FC<SheetCanvasProps> = ({
+  sheetData,
+  cellStyles = {},
+  selectedCell,
+  selectedRange,
+  onSelectCell,
+  onSelectRange,
+  onCellChange,
+  onDeleteCells,
+  activeSheet,
+  onSelectSheet,
+}) => {
   const cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
   const rows = Array.from({ length: 30 }, (_, i) => i + 1);
 
@@ -23,8 +36,10 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({ sheetData, selectedCel
   const [dragStart, setDragStart] = useState<string>(selectedCell);
   const [dragEnd, setDragEnd] = useState<string>(selectedCell);
   const [editingCell, setEditingCell] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Sync internal range with props if provided
   useEffect(() => {
@@ -43,13 +58,22 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({ sheetData, selectedCel
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
+  // Focus input when editing starts
+  useEffect(() => {
+    if (editingCell && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [editingCell]);
+
   const activeRange = dragStart && dragEnd ? parseRange(`${dragStart}:${dragEnd}`) : null;
 
   const handleMouseDown = (coord: string) => {
+    if (editingCell && editingCell !== coord) {
+      commitEdit();
+    }
     setIsDragging(true);
     setDragStart(coord);
     setDragEnd(coord);
-    setEditingCell(null);
     onSelectCell(coord);
     onSelectRange?.(coord, coord);
   };
@@ -61,14 +85,38 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({ sheetData, selectedCel
     }
   };
 
+  const startEditing = (coord: string, initialChar?: string) => {
+    setEditingCell(coord);
+    if (initialChar !== undefined) {
+      setEditValue(initialChar);
+    } else {
+      setEditValue(sheetData[coord] || '');
+    }
+  };
+
+  const commitEdit = () => {
+    if (editingCell) {
+      onCellChange(editingCell, editValue);
+      setEditingCell(null);
+      containerRef.current?.focus();
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingCell(null);
+    containerRef.current?.focus();
+  };
+
   const moveSelection = (dCol: number, dRow: number) => {
+    if (editingCell) {
+      commitEdit();
+    }
     const { colIndex, row } = parseCellCoord(selectedCell);
     const newColIndex = Math.max(0, Math.min(cols.length - 1, colIndex + dCol));
     const newRow = Math.max(1, Math.min(rows.length, row + dRow));
     const newCoord = `${colIndexToName(newColIndex)}${newRow}`;
     setDragStart(newCoord);
     setDragEnd(newCoord);
-    setEditingCell(null);
     onSelectCell(newCoord);
     onSelectRange?.(newCoord, newCoord);
   };
@@ -77,10 +125,15 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({ sheetData, selectedCel
     if (editingCell) {
       if (e.key === 'Enter') {
         e.preventDefault();
-        setEditingCell(null);
+        commitEdit();
         moveSelection(0, 1);
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        commitEdit();
+        moveSelection(e.shiftKey ? -1 : 1, 0);
       } else if (e.key === 'Escape') {
-        setEditingCell(null);
+        e.preventDefault();
+        cancelEdit();
       }
       return;
     }
@@ -102,10 +155,10 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({ sheetData, selectedCel
       moveSelection(e.shiftKey ? -1 : 1, 0);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      moveSelection(0, e.shiftKey ? -1 : 1);
+      startEditing(selectedCell);
     } else if (e.key === 'F2') {
       e.preventDefault();
-      setEditingCell(selectedCell);
+      startEditing(selectedCell);
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       if (dragStart && dragEnd && dragStart !== dragEnd) {
@@ -118,6 +171,10 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({ sheetData, selectedCel
       } else {
         onCellChange(selectedCell, '');
       }
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      // Printable key: start editing directly with that character (Excel behavior)
+      e.preventDefault();
+      startEditing(selectedCell, e.key);
     }
   };
 
@@ -152,10 +209,11 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({ sheetData, selectedCel
                   const isEditing = editingCell === cellId;
 
                   const rawVal = sheetData[cellId] || '';
-                  // Display formula evaluation result when not editing
-                  const displayVal = isEditing || !rawVal.startsWith('=') ? rawVal : evaluateFormula(rawVal, sheetData);
+                  const displayVal = !rawVal.startsWith('=') ? rawVal : evaluateFormula(rawVal, sheetData);
 
-                  // Formatting & Alignment
+                  const customStyle = cellStyles[cellId] || {};
+
+                  // 기본 서식
                   const isHeader = row === 1;
                   const isTotal = row === 6;
                   const isNumberCol = col === 'C' || col === 'D' || col === 'E';
@@ -169,23 +227,43 @@ export const SheetCanvas: React.FC<SheetCanvasProps> = ({ sheetData, selectedCel
                       className={cellClasses}
                       onMouseDown={() => handleMouseDown(cellId)}
                       onMouseEnter={() => handleMouseEnter(cellId)}
-                      onDoubleClick={() => setEditingCell(cellId)}
-                      contentEditable={isEditing}
-                      suppressContentEditableWarning
-                      onBlur={(e) => {
-                        const val = e.currentTarget.textContent || '';
-                        onCellChange(cellId, val);
-                        setEditingCell(null);
-                      }}
+                      onDoubleClick={() => startEditing(cellId)}
                       style={{
-                        textAlign: isNumberCol ? 'right' : isCenterCol ? 'center' : 'left',
-                        fontWeight: isHeader || isTotal ? 'bold' : 'normal',
-                        backgroundColor: isHeader ? '#f8f9fa' : isTotal ? '#f2f9f4' : inRange && !isSelected ? '#e8f5e9' : undefined,
+                        textAlign: customStyle.align || (isNumberCol ? 'right' : isCenterCol ? 'center' : 'left'),
+                        fontWeight: customStyle.bold ? 'bold' : isHeader || isTotal ? 'bold' : 'normal',
+                        fontStyle: customStyle.italic ? 'italic' : 'normal',
+                        textDecoration: customStyle.underline ? 'underline' : 'none',
+                        fontFamily: customStyle.fontFamily || undefined,
+                        fontSize: customStyle.fontSize ? `${customStyle.fontSize}pt` : undefined,
+                        color: customStyle.textColor || undefined,
+                        backgroundColor: customStyle.bgColor || (isHeader ? '#f8f9fa' : isTotal ? '#f2f9f4' : inRange && !isSelected ? '#e8f5e9' : undefined),
                         cursor: 'cell',
+                        position: 'relative',
                         userSelect: isEditing ? 'text' : 'none',
                       }}
                     >
-                      {displayVal}
+                      {isEditing ? (
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          className="sheet-cell-editor"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={commitEdit}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              commitEdit();
+                              moveSelection(0, 1);
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
+                              cancelEdit();
+                            }
+                          }}
+                        />
+                      ) : (
+                        displayVal
+                      )}
                     </td>
                   );
                 })}

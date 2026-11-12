@@ -92,33 +92,91 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
     return null;
   }
 
+  // 폰트 크기 적용: 선택 영역이 있으면 span 인라인 서식, 없으면 기본값 변경
+  const handleApplyFontSize = (sizePt: number) => {
+    onChangeFontSize(sizePt);
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const span = document.createElement('span');
+      span.style.fontSize = `${sizePt}pt`;
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+      selection.removeAllRanges();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      selection.addRange(newRange);
+    }
+  };
+
+  // 폰트 종류 적용: 선택 영역이 있으면 span 인라인 서식, 없으면 기본값 변경
+  const handleApplyFontFamily = (font: string) => {
+    onChangeFontFamily(font);
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const span = document.createElement('span');
+      span.style.fontFamily = font;
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+      selection.removeAllRanges();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      selection.addRange(newRange);
+    } else {
+      onExecCommand('fontName', font);
+    }
+  };
+
   return (
     <div className="omni-ribbon-container">
       {/* 1. 상단 툴바 (Upper Command Ribbon) */}
       <div className="omni-upper-ribbon">
         {/* 클립보드 및 실행 취소 그룹 */}
         <div className="tool-cluster">
-          <button type="button" className="rhwp-tool-btn" onClick={onUndo} disabled={!canUndo} title="되돌리기 (Ctrl+Z)" style={{ opacity: !canUndo ? 0.45 : 1 }}>
+          <button
+            type="button"
+            className="rhwp-tool-btn"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="되돌리기 (Ctrl+Z)"
+            style={{ opacity: !canUndo ? 0.45 : 1 }}
+          >
             <Undo2 size={18} color="#0055b8" />
             <span>되돌리기</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={onRedo} disabled={!canRedo} title="다시실행 (Ctrl+Y)" style={{ opacity: !canRedo ? 0.45 : 1 }}>
+          <button
+            type="button"
+            className="rhwp-tool-btn"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="다시실행 (Ctrl+Y)"
+            style={{ opacity: !canRedo ? 0.45 : 1 }}
+          >
             <Redo2 size={18} color="#0055b8" />
             <span>다시실행</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => onExecCommand('cut')} title="오려두기 (Ctrl+X)">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('cut')} title="오려두기 (Ctrl+X)">
             <Scissors size={18} color="#d97706" />
             <span>오려두기</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => onExecCommand('copy')} title="복사하기 (Ctrl+C)">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('copy')} title="복사하기 (Ctrl+C)">
             <Copy size={18} color="#0055b8" />
             <span>복사하기</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => onExecCommand('paste')} title="붙이기 (Ctrl+V)">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('paste')} title="붙이기 (Ctrl+V)">
             <Clipboard size={18} color="#107c41" />
             <span>붙이기</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => alert('모양복사: 커서 위치의 글자/문단 모양을 복사하여 대상 영역에 적용합니다.')} title="모양복사 (Alt+C)">
+          <button
+            type="button"
+            className="rhwp-tool-btn"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => alert('모양복사: 커서 위치의 글자/문단 모양을 복사하여 대상 영역에 적용합니다.')}
+            title="모양복사 (Alt+C)"
+          >
             <Paintbrush size={18} color="#6366f1" />
             <span>모양복사</span>
           </button>
@@ -126,15 +184,21 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
 
         {/* 조판 및 보기 그룹 */}
         <div className="tool-cluster">
-          <button type="button" className={`rhwp-tool-btn ${showControlMarks ? 'active' : ''}`} onClick={onToggleControlMarks} title="조판부호 켜기/끄기">
+          <button type="button" className={`rhwp-tool-btn ${showControlMarks ? 'active' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={onToggleControlMarks} title="조판부호 켜기/끄기">
             <Type size={18} color="#475569" />
             <span>조판부호</span>
           </button>
-          <button type="button" className={`rhwp-tool-btn ${showParagraphMarks ? 'active' : ''}`} onClick={onToggleParagraphMarks} title="문단부호(엔터 표시) 켜기/끄기">
+          <button
+            type="button"
+            className={`rhwp-tool-btn ${showParagraphMarks ? 'active' : ''}`}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onToggleParagraphMarks}
+            title="문단부호(엔터 표시) 켜기/끄기"
+          >
             <FileText size={18} color="#475569" />
             <span>문단부호</span>
           </button>
-          <button type="button" className={`rhwp-tool-btn ${showGridLines ? 'active' : ''}`} onClick={onToggleGridLines} title="원고지/조판 격자 보기">
+          <button type="button" className={`rhwp-tool-btn ${showGridLines ? 'active' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={onToggleGridLines} title="원고지/조판 격자 보기">
             <Grid size={18} color="#475569" />
             <span>격자보기</span>
           </button>
@@ -142,27 +206,33 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
 
         {/* 문단 및 서식 그룹 */}
         <div className="tool-cluster">
-          <button type="button" className="rhwp-tool-btn" onClick={() => alert('글자 모양 설정 다이얼로그 (Alt+L): 폰트, 장평, 자간, 위첨자/아래첨자')} title="글자모양 (Alt+L)">
+          <button
+            type="button"
+            className="rhwp-tool-btn"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => alert('글자 모양 설정 (Alt+L): 폰트, 장평, 자간, 위첨자/아래첨자')}
+            title="글자모양 (Alt+L)"
+          >
             <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e3a8a' }}>가*</span>
             <span>글자모양</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => alert('문단 모양 설정 다이얼로그 (Alt+T): 줄간격, 여백, 들여쓰기')} title="문단모양 (Alt+T)">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => alert('문단 모양 설정 (Alt+T): 줄간격, 여백, 들여쓰기')} title="문단모양 (Alt+T)">
             <Sliders size={18} color="#1e3a8a" />
             <span>문단모양</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => onExecCommand('insertOrderedList')} title="문단 번호 목록 삽입">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('insertOrderedList')} title="문단 번호 목록 삽입">
             <ListOrdered size={18} color="#334155" />
             <span>문단번호</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => onExecCommand('insertUnorderedList')} title="글머리표 목록 삽입">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('insertUnorderedList')} title="글머리표 목록 삽입">
             <List size={18} color="#334155" />
             <span>글머리표</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => onExecCommand('outdent')} title="내어쓰기 (수준 올리기)">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('outdent')} title="내어쓰기 (수준 올리기)">
             <Outdent size={18} color="#334155" />
             <span>수준▲</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => onExecCommand('indent')} title="들여쓰기 (수준 낮추기)">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('indent')} title="들여쓰기 (수준 낮추기)">
             <Indent size={18} color="#334155" />
             <span>수준▼</span>
           </button>
@@ -170,13 +240,14 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
 
         {/* 개체 삽입 그룹 */}
         <div className="tool-cluster">
-          <button type="button" className="rhwp-tool-btn" onClick={onOpenTableModal} title="표(Table) 삽입 (Ctrl+N, T)">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={onOpenTableModal} title="표(Table) 삽입 (Ctrl+N, T)">
             <Table size={18} color="#0055b8" />
             <span>표 삽입</span>
           </button>
           <button
             type="button"
             className="rhwp-tool-btn"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const boxHtml = `
                 <div style="border: 1px solid #1e3a8a; background-color: #f0f7ff; padding: 12px; margin: 10px 0; border-radius: 4px;">
@@ -193,6 +264,7 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
           <button
             type="button"
             className="rhwp-tool-btn"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const url = prompt('삽입할 이미지 URL을 입력하세요:', 'https://via.placeholder.com/400x200.png?text=Omni+Office');
               if (url) onExecCommand('insertImage', url);
@@ -202,13 +274,14 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
             <Image size={18} color="#059669" />
             <span>그림</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={onOpenSymbolModal} title="문자표 삽입 (Ctrl+F10)">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={onOpenSymbolModal} title="문자표 삽입 (Ctrl+F10)">
             <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#475569' }}>※</span>
             <span>문자표</span>
           </button>
           <button
             type="button"
             className="rhwp-tool-btn"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const url = prompt('링크할 웹 주소(URL)를 입력하세요:', 'https://');
               if (url) onExecCommand('createLink', url);
@@ -222,17 +295,18 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
 
         {/* 쪽 구성 및 도구 그룹 */}
         <div className="tool-cluster">
-          <button type="button" className="rhwp-tool-btn" onClick={onOpenPageSetupModal} title="쪽 여백 설정 (F7)">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={onOpenPageSetupModal} title="쪽 여백 설정 (F7)">
             <Sliders size={18} color="#0055b8" />
             <span>쪽여백(F7)</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => alert('머리말/꼬리말 설정 (Ctrl+N, H)')} title="머리말 설정">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => alert('머리말/꼬리말 설정 (Ctrl+N, H)')} title="머리말 설정">
             <FileText size={18} color="#64748b" />
             <span>머리말</span>
           </button>
           <button
             type="button"
             className="rhwp-tool-btn"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const fn = prompt('각주 내용을 입력하세요:');
               if (fn) {
@@ -244,15 +318,15 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>[1]</span>
             <span>각주</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={onOpenFindModal} title="찾기/바꾸기 (Ctrl+F)">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={onOpenFindModal} title="찾기/바꾸기 (Ctrl+F)">
             <Search size={18} color="#d97706" />
             <span>찾기</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => alert('문서 변경 이력 관리 (SQLite 로컬 스냅샷)')} title="이력 관리">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => alert('문서 변경 이력 관리 (SQLite 로컬 스냅샷)')} title="이력 관리">
             <History size={18} color="#475569" />
             <span>이력관리</span>
           </button>
-          <button type="button" className="rhwp-tool-btn" onClick={() => alert('문서 비교 기능: 이전 버전과의 차이점을 한눈에 확인합니다.')} title="문서 비교">
+          <button type="button" className="rhwp-tool-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => alert('문서 비교 기능: 이전 버전과의 차이점을 한눈에 확인합니다.')} title="문서 비교">
             <GitCompare size={18} color="#475569" />
             <span>문서비교</span>
           </button>
@@ -265,6 +339,7 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
         <select
           className="format-select"
           style={{ width: '85px' }}
+          onMouseDown={(e) => e.stopPropagation()}
           onChange={(e) => {
             const val = e.target.value;
             if (val === 'h1') onExecCommand('formatBlock', '<h1>');
@@ -295,10 +370,8 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
           className="format-select"
           style={{ width: '130px' }}
           value={fontFamily}
-          onChange={(e) => {
-            onChangeFontFamily(e.target.value);
-            onExecCommand('fontName', e.target.value);
-          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onChange={(e) => handleApplyFontFamily(e.target.value)}
           title="글꼴체 선택"
         >
           <option value="'Batang', '바탕', '함초롬바탕', serif">함초롬바탕 (공공표준)</option>
@@ -318,32 +391,18 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
             min={6}
             max={72}
             step={0.5}
+            onMouseDown={(e) => e.stopPropagation()}
             onChange={(e) => {
               const val = parseFloat(e.target.value) || 10;
-              onChangeFontSize(val);
-              onExecCommand('fontSize', '4');
+              handleApplyFontSize(val);
             }}
             title="글자 크기 (pt)"
           />
           <span style={{ fontSize: '11px', color: '#666' }}>pt</span>
-          <button
-            type="button"
-            className="format-spin-btn"
-            onClick={() => {
-              const next = Math.min(72, fontSize + 1);
-              onChangeFontSize(next);
-            }}
-          >
+          <button type="button" className="format-spin-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => handleApplyFontSize(Math.min(72, fontSize + 1))}>
             +
           </button>
-          <button
-            type="button"
-            className="format-spin-btn"
-            onClick={() => {
-              const next = Math.max(6, fontSize - 1);
-              onChangeFontSize(next);
-            }}
-          >
+          <button type="button" className="format-spin-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => handleApplyFontSize(Math.max(6, fontSize - 1))}>
             -
           </button>
         </div>
@@ -357,6 +416,7 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
             min={100}
             max={300}
             step={10}
+            onMouseDown={(e) => e.stopPropagation()}
             onChange={(e) => {
               const val = parseInt(e.target.value, 10) || 160;
               onChangeLineHeight(val);
@@ -364,10 +424,10 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
             title="줄간격 (%)"
           />
           <span style={{ fontSize: '11px', color: '#666' }}>%</span>
-          <button type="button" className="format-spin-btn" onClick={() => onChangeLineHeight(Math.min(300, lineHeight + 10))}>
+          <button type="button" className="format-spin-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onChangeLineHeight(Math.min(300, lineHeight + 10))}>
             +
           </button>
-          <button type="button" className="format-spin-btn" onClick={() => onChangeLineHeight(Math.max(100, lineHeight - 10))}>
+          <button type="button" className="format-spin-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onChangeLineHeight(Math.max(100, lineHeight - 10))}>
             -
           </button>
         </div>
@@ -375,16 +435,16 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
         <div className="format-divider" />
 
         {/* 글자 서식 버튼 (굵게, 기울임, 밑줄, 취소선) */}
-        <button type="button" className="format-icon-btn" onClick={() => onExecCommand('bold')} title="굵게 (Ctrl+B)">
+        <button type="button" className="format-icon-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('bold')} title="굵게 (Ctrl+B)">
           <Bold size={14} />
         </button>
-        <button type="button" className="format-icon-btn" onClick={() => onExecCommand('italic')} title="기울임 (Ctrl+I)">
+        <button type="button" className="format-icon-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('italic')} title="기울임 (Ctrl+I)">
           <Italic size={14} />
         </button>
-        <button type="button" className="format-icon-btn" onClick={() => onExecCommand('underline')} title="밑줄 (Ctrl+U)">
+        <button type="button" className="format-icon-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('underline')} title="밑줄 (Ctrl+U)">
           <Underline size={14} />
         </button>
-        <button type="button" className="format-icon-btn" onClick={() => onExecCommand('strikeThrough')} title="취소선">
+        <button type="button" className="format-icon-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('strikeThrough')} title="취소선">
           <Strikethrough size={14} />
         </button>
 
@@ -421,16 +481,16 @@ export const HwpRibbon: React.FC<HwpRibbonProps> = ({
         <div className="format-divider" />
 
         {/* 문단 정렬 (양쪽, 왼쪽, 가운데, 오른쪽, 배분) */}
-        <button type="button" className="format-icon-btn" onClick={() => onExecCommand('justifyFull')} title="양쪽 맞춤 (Ctrl+Shift+M)">
+        <button type="button" className="format-icon-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('justifyFull')} title="양쪽 맞춤 (Ctrl+Shift+M)">
           <AlignJustify size={14} />
         </button>
-        <button type="button" className="format-icon-btn" onClick={() => onExecCommand('justifyLeft')} title="왼쪽 정렬 (Ctrl+Shift+L)">
+        <button type="button" className="format-icon-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('justifyLeft')} title="왼쪽 정렬 (Ctrl+Shift+L)">
           <AlignLeft size={14} />
         </button>
-        <button type="button" className="format-icon-btn" onClick={() => onExecCommand('justifyCenter')} title="가운데 정렬 (Ctrl+Shift+C)">
+        <button type="button" className="format-icon-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('justifyCenter')} title="가운데 정렬 (Ctrl+Shift+C)">
           <AlignCenter size={14} />
         </button>
-        <button type="button" className="format-icon-btn" onClick={() => onExecCommand('justifyRight')} title="오른쪽 정렬 (Ctrl+Shift+R)">
+        <button type="button" className="format-icon-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => onExecCommand('justifyRight')} title="오른쪽 정렬 (Ctrl+Shift+R)">
           <AlignRight size={14} />
         </button>
       </div>
