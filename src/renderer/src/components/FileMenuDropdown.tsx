@@ -13,6 +13,15 @@ interface FileMenuDropdownProps {
 }
 
 export const FileMenuDropdown: React.FC<FileMenuDropdownProps> = ({ isOpen, onClose, onNewDoc, onOpenFile, onSaveFile, onSaveAsFile, onPrint }) => {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (

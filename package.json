@@ -9,6 +9,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "format": "prettier --write .",
+    "test:ui": "xvfb-run --auto-servernum node scripts/test-ui.js",
     "bump:patch": "node scripts/bump-version.js patch",
     "bump:minor": "node scripts/bump-version.js minor",
     "bump:major": "node scripts/bump-version.js major",
@@ -29,6 +30,7 @@
     "electron": "^43.1.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
+    "playwright": "^1.65.0",
     "prettier": "^3.10.0",
     "typescript": "^5.7.2",
     "vite": "^5.4.11"
