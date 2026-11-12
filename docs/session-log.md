@@ -24,7 +24,7 @@ domain: development
   - styles.css 서식 상속: `.hwp-content-text`, `.hwp-meta-table`, `.hwp-section-heading`의 하드코딩 폰트/폰트크기를 `inherit`으로 변경하여 리본 설정이 전체 문서에 실시간 반영되도록 수정
   - 스프레드시트 인라인 편집: `SheetCanvas.tsx`에 `<input className="sheet-cell-editor">`를 도입하여 셀 클릭 후 바로 타이핑, 더블클릭, F2, Enter 모두 정상 동작하도록 개선
   - 스프레드시트 셀 서식: `cellStyles` 상태 및 `ExcelRibbon.tsx`의 굵게, 기울임, 밑줄, 글꼴, 글자크기, 정렬, 배경색 버튼 핸들러를 완전 연동하여 개별 셀 및 선택 범위 전체에 실시간 서식 적용 지원
-  - 패키징: v0.3.0 NSIS 단일 인스톨러 `OmniOffice-Setup-0.3.0.exe` (105MB, MD5: 9cf00c5b1325df3572feb4e0e282c7f9) 빌드 완료
+  - 패키징 및 배포: v0.3.0 NSIS 단일 인스톨러 `OmniOffice-Setup-0.3.0.exe` (105MB, MD5: 9cf00c5b1325df3572feb4e0e282c7f9) 빌드 완료 및 Windows 바탕화면 `seonghyun` 디렉토리로 교체 복사 완료 (구버전 0.2.0 삭제)
 - **검증**: `npm run build`, Playwright 7개 테스트 스위트(`npm run test:ui`) 100% 무결점 통과
 - **다음**: 사용자 실기 테스트 및 피드백 수렴
 
