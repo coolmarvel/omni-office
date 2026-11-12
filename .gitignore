@@ -1,0 +1,35 @@
+# 환경 변수 시크릿
+.env
+.env.*
+!.env.example
+
+# 에이전트 로컬 설정
+.claude/settings.local.json
+
+# OS/에디터
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# 로그
+*.log
+
+# 의존성 및 빌드 산출물 (Node / Vite / Electron)
+node_modules/
+dist/
+dist-ssr/
+out/
+release/
+*.local
+*.exe
+*.blockmap
+
+# Rust / Tauri 산출물
+target/
+src-tauri/target/
+
+# 로컬 SQLite 데이터베이스 및 세션 캐시
+*.sqlite
+*.sqlite3
+*.db
